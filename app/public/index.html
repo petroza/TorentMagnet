@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="cs" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>TorrentMagnet</title>
   <link rel="stylesheet" href="/style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2334d399' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>" />
 </head>
 <body>
   <header class="topbar">
@@ -16,10 +16,13 @@
         <span class="subtitle"><span class="dot-live"></span> engine libtorrent · jede jen lokálně</span>
       </div>
     </div>
-    <div class="global-stats">
-      <span class="stat-pill down" title="Celková rychlost stahování"><span class="ico" data-icon="download"></span><b id="globalDown">0 B/s</b></span>
-      <span class="stat-pill up" title="Celková rychlost odesílání"><span class="ico" data-icon="upload"></span><b id="globalUp">0 B/s</b></span>
-      <span class="stat-pill count" title="Počet torrentů"><span class="ico" data-icon="layers"></span><b id="globalCount">0</b></span>
+    <div class="top-right">
+      <div class="global-stats">
+        <span class="stat-pill down" title="Celková rychlost stahování"><span class="ico" data-icon="download"></span><b id="globalDown">0 B/s</b></span>
+        <span class="stat-pill up" title="Celková rychlost odesílání"><span class="ico" data-icon="upload"></span><b id="globalUp">0 B/s</b></span>
+        <span class="stat-pill count" title="Počet torrentů"><span class="ico" data-icon="layers"></span><b id="globalCount">0</b></span>
+      </div>
+      <button id="themeToggle" class="icon-btn" title="Přepnout světlý / tmavý režim"><span class="ico" data-icon="moon"></span></button>
     </div>
   </header>
 
@@ -30,12 +33,10 @@
         <button class="tab" data-tab="file"><span class="ico" data-icon="file"></span> .torrent soubor</button>
         <button class="tab" data-tab="link"><span class="ico" data-icon="link"></span> Odkaz / URL</button>
       </div>
-
       <div class="tab-panel active" data-panel="magnet">
         <textarea id="magnetInput" rows="2" placeholder="Vlož magnet:?xt=urn:btih:…  (klidně víc odkazů, každý na nový řádek)"></textarea>
         <button id="addMagnetBtn" class="primary"><span class="ico" data-icon="plus"></span> Přidat magnet</button>
       </div>
-
       <div class="tab-panel" data-panel="file">
         <div id="dropZone" class="drop-zone">
           <span class="ico" data-icon="upload-cloud"></span>
@@ -43,12 +44,10 @@
           <input type="file" id="torrentFile" accept=".torrent" multiple hidden />
         </div>
       </div>
-
       <div class="tab-panel" data-panel="link">
         <input type="text" id="linkInput" placeholder="magnet:…  nebo  https://…/neco.torrent" />
         <button id="addLinkBtn" class="primary"><span class="ico" data-icon="plus"></span> Přidat odkaz</button>
       </div>
-
       <div id="addMsg" class="add-msg"></div>
     </section>
 
@@ -67,7 +66,20 @@
       </div>
     </section>
 
-    <section class="select-bar" id="selectBar">
+    <section class="controls">
+      <div class="filter-chips" id="filterChips">
+        <button class="chip active" data-filter="all">Vše <span class="badge-n" data-count="all"></span></button>
+        <button class="chip" data-filter="downloading">Stahuje se <span class="badge-n" data-count="downloading"></span></button>
+        <button class="chip" data-filter="seeding">Hotové <span class="badge-n" data-count="seeding"></span></button>
+        <button class="chip" data-filter="paused">Pozastavené <span class="badge-n" data-count="paused"></span></button>
+      </div>
+      <div class="search-wrap">
+        <span class="ico" data-icon="search"></span>
+        <input type="search" id="searchInput" placeholder="Hledat ve frontě…" />
+      </div>
+    </section>
+
+    <section class="select-bar" id="selectBar" hidden>
       <label class="select-all"><input type="checkbox" id="selectAll" /> Označit vše <span id="selCount" class="sel-count"></span></label>
       <div class="select-actions">
         <button id="delSelectedBtn" class="ghost small danger"><span class="ico" data-icon="trash"></span> Smazat označené</button>
@@ -89,38 +101,15 @@
   <div class="modal" id="settingsModal" hidden>
     <div class="modal-box">
       <div class="modal-head"><span class="ico" data-icon="settings"></span><h2>Nastavení</h2></div>
-      <label>Limit stahování (KB/s, 0 = bez limitu)
-        <input type="number" id="setMaxDown" min="0" value="0" />
-      </label>
-      <label>Limit odesílání (KB/s, 0 = bez limitu)
-        <input type="number" id="setMaxUp" min="0" value="0" />
-      </label>
-      <label>Kolik torrentů stahovat současně
-        <input type="number" id="setConcurrent" min="1" max="50" value="3" />
-      </label>
-      <label class="checkbox">
-        <input type="checkbox" id="setAutoSubs" />
-        <span>Automaticky hledat 🇨🇿/🇺🇦 titulky během stahování</span>
-      </label>
-      <label class="checkbox">
-        <input type="checkbox" id="setSlowSkip" />
-        <span>Pomalé / zaseknuté torrenty přeskočit a vrátit se k nim později</span>
-      </label>
-      <label>Hranice „pomalého" stahování (KB/s)
-        <input type="number" id="setSlowKbps" min="1" max="100000" value="30" />
-      </label>
-      <label class="checkbox">
-        <input type="checkbox" id="setSequential" />
-        <span>Stahovat po pořádku (sequential) – vhodné pro náhled videa, může být pomalejší</span>
-      </label>
-      <label class="checkbox">
-        <input type="checkbox" id="setKeepSeeding" />
-        <span>Po dokončení dál sdílet (seedovat) – pomáhá ostatním</span>
-      </label>
-      <label class="checkbox">
-        <input type="checkbox" id="setAutoOpen" />
-        <span>Otevírat prohlížeč při startu</span>
-      </label>
+      <label>Limit stahování (KB/s, 0 = bez limitu)<input type="number" id="setMaxDown" min="0" value="0" /></label>
+      <label>Limit odesílání (KB/s, 0 = bez limitu)<input type="number" id="setMaxUp" min="0" value="0" /></label>
+      <label>Kolik torrentů stahovat současně<input type="number" id="setConcurrent" min="1" max="50" value="3" /></label>
+      <label class="checkbox"><input type="checkbox" id="setAutoSubs" /><span>Automaticky hledat 🇨🇿/🇺🇦 titulky během stahování</span></label>
+      <label class="checkbox"><input type="checkbox" id="setSlowSkip" /><span>Pomalé / zaseknuté torrenty přeskočit a vrátit se k nim později</span></label>
+      <label>Hranice „pomalého" stahování (KB/s)<input type="number" id="setSlowKbps" min="1" max="100000" value="30" /></label>
+      <label class="checkbox"><input type="checkbox" id="setSequential" /><span>Stahovat po pořádku (sequential) – vhodné pro náhled videa</span></label>
+      <label class="checkbox"><input type="checkbox" id="setKeepSeeding" /><span>Po dokončení dál sdílet (seedovat) – pomáhá ostatním</span></label>
+      <label class="checkbox"><input type="checkbox" id="setAutoOpen" /><span>Otevírat prohlížeč při startu</span></label>
       <div class="modal-actions">
         <button id="saveSettingsBtn" class="primary"><span class="ico" data-icon="check"></span> Uložit</button>
         <button class="ghost modal-close">Zavřít</button>
@@ -140,8 +129,19 @@
     </div>
   </div>
 
-  <div id="toast" class="toast" hidden></div>
+  <!-- Potvrzovací dialog -->
+  <div class="modal" id="confirmModal" hidden>
+    <div class="modal-box narrow">
+      <div class="modal-head"><span class="ico" data-icon="alert"></span><h2 id="confirmTitle">Potvrzení</h2></div>
+      <p class="modal-text" id="confirmText"></p>
+      <div class="modal-actions">
+        <button id="confirmCancel" class="ghost">Zrušit</button>
+        <button id="confirmOk" class="primary">Potvrdit</button>
+      </div>
+    </div>
+  </div>
 
+  <div id="toast" class="toast" hidden></div>
   <script src="/app.js"></script>
 </body>
 </html>

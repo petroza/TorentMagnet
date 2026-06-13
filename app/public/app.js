@@ -30,6 +30,9 @@ const ICONS = {
   "hard-drive": '<line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/>',
   alert: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   subs: '<rect x="3" y="5" width="18" height="14" rx="2"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="7" y1="15" x2="15" y2="15"/><line x1="14" y1="11" x2="17" y2="11"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun: '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>',
+  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
 };
 
 // vlaječky pro titulky (vlastní SVG – emoji vlajky se na Windows nezobrazují)
@@ -181,8 +184,8 @@ async function uploadTorrents(files) {
 
 // ---------- Akce nad torrenty ----------
 async function taskAction(infohash, action) {
-  if (action === "remove_data" && !confirm("Opravdu smazat torrent VČETNĚ stažených souborů z disku?")) return;
-  if (action === "remove" && !confirm("Odebrat torrent z fronty? (stažené soubory zůstanou na disku)")) return;
+  if (action === "remove_data" && !(await confirmDialog("Opravdu smazat torrent VČETNĚ stažených souborů z disku? Tohle nejde vrátit."))) return;
+  if (action === "remove" && !(await confirmDialog("Odebrat torrent z fronty? Stažené soubory zůstanou na disku."))) return;
   const r = await api("/api/action", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ infohash, action }),
@@ -204,7 +207,7 @@ document.getElementById("resumeAllBtn").addEventListener("click", () => bulkActi
 
 // ---------- Výběr ve frontě + hromadné mazání ----------
 function updateSelCount() {
-  const n = [...selected].filter(ih => currentInfohashes.includes(ih)).length;
+  const n = selected.size;
   const cnt = document.getElementById("selCount");
   if (cnt) cnt.textContent = n ? `(${n})` : "";
   const all = document.getElementById("selectAll");
@@ -235,7 +238,7 @@ document.getElementById("selectAll").addEventListener("change", e => {
 async function bulkDelete(ihs, confirmMsg) {
   ihs = (ihs || []).filter(Boolean);
   if (!ihs.length) { toast("Nic k smazání.", "err"); return; }
-  if (!confirm(confirmMsg)) return;
+  if (!(await confirmDialog(confirmMsg))) return;
   const r = await api("/api/bulk-action", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "remove_data", infohashes: ihs }),
@@ -245,19 +248,20 @@ async function bulkDelete(ihs, confirmMsg) {
   else toast(r.error || "Mazání selhalo.", "err");
   refresh();
 }
+const allInfohashes = () => allTasks.map(t => t.infohash);
 
 document.getElementById("delSelectedBtn").addEventListener("click", () => {
-  const ihs = [...selected].filter(ih => currentInfohashes.includes(ih));
+  const ihs = [...selected].filter(ih => allInfohashes().includes(ih));
   if (!ihs.length) { toast("Nejdřív zaškrtni torrenty ve frontě.", "err"); return; }
   bulkDelete(ihs, `Smazat ${ihs.length} označených torrentů VČETNĚ stažených souborů z disku?\nTohle nejde vrátit.`);
 });
 document.getElementById("delFinishedBtn").addEventListener("click", () => {
-  const ihs = lastTasks.filter(t => t.isFinished || t.state === "seeding").map(t => t.infohash);
+  const ihs = allTasks.filter(t => t.isFinished || t.state === "seeding").map(t => t.infohash);
   if (!ihs.length) { toast("Žádné dokončené (stažené) torrenty.", "err"); return; }
   bulkDelete(ihs, `Smazat ${ihs.length} dokončených (stažených) torrentů VČETNĚ souborů z disku?\nTohle nejde vrátit.`);
 });
 document.getElementById("delAllBtn").addEventListener("click", () => {
-  const ihs = currentInfohashes.slice();
+  const ihs = allInfohashes();
   if (!ihs.length) { toast("Fronta je prázdná.", "err"); return; }
   bulkDelete(ihs, `Smazat VŠECH ${ihs.length} torrentů VČETNĚ všech stažených souborů z disku?\nTohle nejde vrátit.`);
 });
@@ -278,19 +282,28 @@ const STATE_LABEL = {
 let currentInfohashes = [];
 let prevOrder = "";
 let selected = new Set();
-let lastTasks = [];
+let allTasks = [];
+let curFilter = "all";
+let curSearch = "";
 
 function renderTasks(tasks) {
   const queue = document.getElementById("queue");
   const empty = document.getElementById("emptyState");
   currentInfohashes = tasks.map(t => t.infohash);
-  lastTasks = tasks;
-  [...selected].forEach(ih => { if (!currentInfohashes.includes(ih)) selected.delete(ih); });
-  document.getElementById("selectBar").hidden = !tasks.length;
+  const allIh = allTasks.map(t => t.infohash);
+  [...selected].forEach(ih => { if (!allIh.includes(ih)) selected.delete(ih); });
+  document.getElementById("selectBar").hidden = !allTasks.length;
 
   if (!tasks.length) {
     queue.querySelectorAll(".task").forEach(e => e.remove());
     empty.style.display = "";
+    if (allTasks.length) {
+      empty.querySelector("h3").textContent = "Nic neodpovídá";
+      empty.querySelector("p").textContent = "Zkus jiný filtr nebo vymaž hledání.";
+    } else {
+      empty.querySelector("h3").textContent = "Zatím tu nic není";
+      empty.querySelector("p").textContent = "Přidej magnet odkaz nebo .torrent soubor nahoře a stahování se rozjede.";
+    }
     prevOrder = "";
     updateSelCount();
     return;
@@ -332,7 +345,10 @@ function taskSkeleton() {
   return `
     <div class="task-head">
       <input type="checkbox" class="task-check" title="Označit" />
-      <span class="task-icon" data-h="icon"></span>
+      <span class="task-icon">
+        <svg class="ring" viewBox="0 0 44 44"><circle class="ring-bg" cx="22" cy="22" r="19"></circle><circle class="ring-fg" data-h="ring" cx="22" cy="22" r="19"></circle></svg>
+        <span class="task-glyph" data-h="icon"></span>
+      </span>
       <div class="task-head-main">
         <div class="task-name" data-h="name"></div>
         <div class="task-sub">
@@ -385,7 +401,10 @@ function updateTask(el, t) {
 
   // hodnoty, které se mění každý tik – jen text, žádné překreslování struktury
   q("pct").textContent = t.progress.toFixed(1) + " %";
-  q("bar").style.width = Math.min(100, t.progress) + "%";
+  const pctClamp = Math.min(100, Math.max(0, t.progress));
+  q("bar").style.width = pctClamp + "%";
+  const ring = q("ring");
+  if (ring) ring.style.strokeDashoffset = (119.38 * (1 - pctClamp / 100)).toFixed(1);
 
   if (t.totalLength) q("v-size").innerHTML = `${fmtBytes(t.completedLength)} / <b>${fmtBytes(t.totalLength)}</b>`;
   else q("v-size").textContent = "velikost se zjišťuje…";
@@ -478,13 +497,76 @@ async function refresh() {
     document.getElementById("globalUp").textContent = fmtSpeed(data.stat.uploadSpeed);
     document.getElementById("globalCount").textContent = data.stat.count;
     if (data.settings) document.getElementById("downloadDir").textContent = data.settings.download_dir;
-    renderTasks(data.tasks);
+    allTasks = data.tasks || [];
+    updateFilterCounts(allTasks);
+    renderTasks(applyFilter(allTasks));
   } catch (e) { /* server možná startuje */ }
 }
 function startRefresh() {
   refresh();
   clearInterval(refreshTimer);
   refreshTimer = setInterval(refresh, 1500);
+}
+
+// ---------- Filtry + hledání ----------
+function taskGroup(t) {
+  if (t.isFinished || t.state === "seeding") return "seeding";
+  if (t.paused) return "paused";
+  return "downloading"; // downloading / metadata / stalled / checking
+}
+function applyFilter(tasks) {
+  const q = curSearch.trim().toLowerCase();
+  return tasks.filter(t => {
+    if (q && !(t.name || "").toLowerCase().includes(q)) return false;
+    return curFilter === "all" || taskGroup(t) === curFilter;
+  });
+}
+function updateFilterCounts(tasks) {
+  const c = { all: tasks.length, downloading: 0, seeding: 0, paused: 0 };
+  tasks.forEach(t => { c[taskGroup(t)]++; });
+  document.querySelectorAll("[data-count]").forEach(el => {
+    const v = c[el.dataset.count]; el.textContent = v ? v : "";
+  });
+}
+document.getElementById("filterChips").addEventListener("click", e => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  document.querySelectorAll("#filterChips .chip").forEach(c => c.classList.remove("active"));
+  chip.classList.add("active");
+  curFilter = chip.dataset.filter;
+  renderTasks(applyFilter(allTasks));
+});
+document.getElementById("searchInput").addEventListener("input", e => {
+  curSearch = e.target.value;
+  renderTasks(applyFilter(allTasks));
+});
+
+// ---------- Motiv (světlý / tmavý) ----------
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  const btn = document.querySelector("#themeToggle .ico");
+  if (btn) btn.innerHTML = svg(theme === "light" ? "moon" : "sun");
+  try { localStorage.setItem("tm-theme", theme); } catch (e) {}
+}
+document.getElementById("themeToggle").addEventListener("click", () => {
+  const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+  applyTheme(next);
+});
+
+// ---------- Potvrzovací dialog (hezký, místo systémového confirm) ----------
+function confirmDialog(text, okLabel) {
+  return new Promise(resolve => {
+    const modal = document.getElementById("confirmModal");
+    document.getElementById("confirmText").textContent = text;
+    document.getElementById("confirmOk").innerHTML = `<span class="ico">${svg("check")}</span> ${okLabel || "Potvrdit"}`;
+    modal.hidden = false;
+    const ok = document.getElementById("confirmOk");
+    const cancel = document.getElementById("confirmCancel");
+    const done = (val) => { modal.hidden = true; ok.onclick = null; cancel.onclick = null; modal.onclick = null; resolve(val); };
+    ok.onclick = () => done(true);
+    cancel.onclick = () => done(false);
+    modal.onclick = (e) => { if (e.target === modal) done(false); };
+  });
 }
 
 // ---------- Složka ----------
@@ -556,4 +638,7 @@ document.querySelectorAll(".modal").forEach(m =>
 
 // ---------- Start ----------
 fillIcons();
+let savedTheme = "dark";
+try { savedTheme = localStorage.getItem("tm-theme") || "dark"; } catch (e) {}
+applyTheme(savedTheme);
 startRefresh();
