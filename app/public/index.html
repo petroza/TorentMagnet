@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TorrentMagnet</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2334d399' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/><polyline points='7 10 12 15 17 10'/><line x1='12' y1='15' x2='12' y2='3'/></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo ico" data-icon="download"></span>
+      <div>
+        <h1>TorrentMagnet</h1>
+        <span class="subtitle"><span class="dot-live"></span> engine libtorrent · jede jen lokálně</span>
+      </div>
+    </div>
+    <div class="global-stats">
+      <span class="stat-pill down" title="Celková rychlost stahování"><span class="ico" data-icon="download"></span><b id="globalDown">0 B/s</b></span>
+      <span class="stat-pill up" title="Celková rychlost odesílání"><span class="ico" data-icon="upload"></span><b id="globalUp">0 B/s</b></span>
+      <span class="stat-pill count" title="Počet torrentů"><span class="ico" data-icon="layers"></span><b id="globalCount">0</b></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="add-card">
+      <div class="tabs">
+        <button class="tab active" data-tab="magnet"><span class="ico" data-icon="magnet"></span> Magnet odkaz</button>
+        <button class="tab" data-tab="file"><span class="ico" data-icon="file"></span> .torrent soubor</button>
+        <button class="tab" data-tab="link"><span class="ico" data-icon="link"></span> Odkaz / URL</button>
+      </div>
+
+      <div class="tab-panel active" data-panel="magnet">
+        <textarea id="magnetInput" rows="2" placeholder="Vlož magnet:?xt=urn:btih:…  (klidně víc odkazů, každý na nový řádek)"></textarea>
+        <button id="addMagnetBtn" class="primary"><span class="ico" data-icon="plus"></span> Přidat magnet</button>
+      </div>
+
+      <div class="tab-panel" data-panel="file">
+        <div id="dropZone" class="drop-zone">
+          <span class="ico" data-icon="upload-cloud"></span>
+          <p>Přetáhni sem <b>.torrent</b> soubor, nebo klikni a vyber</p>
+          <input type="file" id="torrentFile" accept=".torrent" multiple hidden />
+        </div>
+      </div>
+
+      <div class="tab-panel" data-panel="link">
+        <input type="text" id="linkInput" placeholder="magnet:…  nebo  https://…/neco.torrent" />
+        <button id="addLinkBtn" class="primary"><span class="ico" data-icon="plus"></span> Přidat odkaz</button>
+      </div>
+
+      <div id="addMsg" class="add-msg"></div>
+    </section>
+
+    <section class="toolbar">
+      <div class="folder-row">
+        <span class="folder-label">Stahovat do:</span>
+        <span class="folder-chip"><span class="ico" data-icon="folder"></span><span id="downloadDir">…</span></span>
+        <button id="pickFolderBtn" class="ghost small"><span class="ico" data-icon="edit"></span> Změnit</button>
+        <button id="openFolderBtn" class="ghost small"><span class="ico" data-icon="folder-open"></span> Otevřít</button>
+      </div>
+      <div class="bulk-row">
+        <button id="resumeAllBtn" class="ghost small"><span class="ico" data-icon="play"></span> Spustit vše</button>
+        <button id="pauseAllBtn" class="ghost small"><span class="ico" data-icon="pause"></span> Pozastavit vše</button>
+        <button id="settingsBtn" class="ghost small"><span class="ico" data-icon="settings"></span> Nastavení</button>
+        <button id="logsBtn" class="ghost small"><span class="ico" data-icon="file-text"></span> Log</button>
+      </div>
+    </section>
+
+    <section class="select-bar" id="selectBar">
+      <label class="select-all"><input type="checkbox" id="selectAll" /> Označit vše <span id="selCount" class="sel-count"></span></label>
+      <div class="select-actions">
+        <button id="delSelectedBtn" class="ghost small danger"><span class="ico" data-icon="trash"></span> Smazat označené</button>
+        <button id="delFinishedBtn" class="ghost small danger"><span class="ico" data-icon="check"></span> Smazat stažené</button>
+        <button id="delAllBtn" class="ghost small danger"><span class="ico" data-icon="trash"></span> Smazat vše</button>
+      </div>
+    </section>
+
+    <section id="queue" class="queue">
+      <div class="empty" id="emptyState">
+        <span class="ico" data-icon="inbox"></span>
+        <h3>Zatím tu nic není</h3>
+        <p>Přidej magnet odkaz nebo .torrent soubor nahoře a stahování se rozjede.</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Nastavení -->
+  <div class="modal" id="settingsModal" hidden>
+    <div class="modal-box">
+      <div class="modal-head"><span class="ico" data-icon="settings"></span><h2>Nastavení</h2></div>
+      <label>Limit stahování (KB/s, 0 = bez limitu)
+        <input type="number" id="setMaxDown" min="0" value="0" />
+      </label>
+      <label>Limit odesílání (KB/s, 0 = bez limitu)
+        <input type="number" id="setMaxUp" min="0" value="0" />
+      </label>
+      <label>Kolik torrentů stahovat současně
+        <input type="number" id="setConcurrent" min="1" max="50" value="3" />
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="setAutoSubs" />
+        <span>Automaticky hledat 🇨🇿/🇺🇦 titulky během stahování</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="setSlowSkip" />
+        <span>Pomalé / zaseknuté torrenty přeskočit a vrátit se k nim později</span>
+      </label>
+      <label>Hranice „pomalého" stahování (KB/s)
+        <input type="number" id="setSlowKbps" min="1" max="100000" value="30" />
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="setSequential" />
+        <span>Stahovat po pořádku (sequential) – vhodné pro náhled videa, může být pomalejší</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="setKeepSeeding" />
+        <span>Po dokončení dál sdílet (seedovat) – pomáhá ostatním</span>
+      </label>
+      <label class="checkbox">
+        <input type="checkbox" id="setAutoOpen" />
+        <span>Otevírat prohlížeč při startu</span>
+      </label>
+      <div class="modal-actions">
+        <button id="saveSettingsBtn" class="primary"><span class="ico" data-icon="check"></span> Uložit</button>
+        <button class="ghost modal-close">Zavřít</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="modal" id="logsModal" hidden>
+    <div class="modal-box wide">
+      <div class="modal-head"><span class="ico" data-icon="file-text"></span><h2>Log aplikace</h2></div>
+      <pre id="logContent" class="log-content">Načítám…</pre>
+      <div class="modal-actions">
+        <button id="refreshLogBtn" class="ghost"><span class="ico" data-icon="refresh"></span> Obnovit</button>
+        <button class="ghost modal-close">Zavřít</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

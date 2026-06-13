@@ -1,0 +1,22 @@
+# prostředí a cache / environment & cache
+.venv/
+__pycache__/
+*.pyc
+
+# běhový stav (nepatří do repa) / runtime state (not for the repo)
+config/settings.json
+config/sources.json
+config/resume/*
+!config/resume/.gitkeep
+downloads/*
+!downloads/.gitkeep
+logs/*
+!logs/.gitkeep
+torrents/*
+!torrents/.gitkeep
+
+# dočasné / temporary
+_*.py
+*.zip
+.DS_Store
+Thumbs.db

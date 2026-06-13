@@ -1,0 +1,10 @@
+# Normalizace konců řádků / line-ending normalization
+* text=auto
+
+# macOS / Linux spouštěč a shell skripty MUSÍ zůstat LF
+*.command text eol=lf
+*.sh text eol=lf
+
+# Windows dávkové soubory CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
