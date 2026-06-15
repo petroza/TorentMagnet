@@ -1,7 +1,5 @@
 # TorrentMagnet
 
-![TorrentMagnet — lokální web UI](screenshot.png)
-
 Lokální, spolehlivý a soukromý stahovač torrentů / magnetů s automatickým hledáním a překladem titulků.
 A local, reliable and private torrent / magnet downloader with automatic subtitle search and translation.
 
